@@ -1,0 +1,12 @@
+version: 0.0
+os: windows
+files:
+  - source: .\dll
+    destination: .\dll-staging
+hooks:
+  BeforeInstall:
+    - location: \codedeploy-before-install.bat
+      timeout: 120
+  AfterInstall:
+    - location: \codedeploy-after-install.bat
+      timeout: 120  

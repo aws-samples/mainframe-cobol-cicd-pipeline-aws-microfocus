@@ -1,0 +1,67 @@
+version: 0.2
+
+env:
+  variables:
+    SOURCE_COBOL_FOLDER: .\Bankdemo\Sources\cbl
+    AWS_CICD_FOLDER: .\Bankdemo\AWS-CICD
+    COBCPY: .\Bankdemo\Sources\copybook;C:\EDTools\cpylib # where to find copybooks such as DFHAID and application copybooks
+    COBOL_EXE_PATH_FILE: C:\EDTools\bin\cobol.exe
+    CBLLINK_EXE_PATH_FILE: C:\EDTools\bin\cbllink.exe
+    COBOL_COMPILER_DIRECTIVES: "preprocess(EXCI),CICSECM(),CHARSET(EBCDIC),DIALECT(ENTCOBOL),SOURCEFORMAT(fixed),NOPANVALET,NOLIBRARIAN,ANIM,EXITPROGRAM(ANSI),WARNING(1),MAX-ERROR(100)"
+    COBDIR: C:\EDTools # where to find the message file
+
+phases:
+  pre_build:
+    commands:
+      - echo ===============================================================================
+      - echo Variables
+      - 'echo SOURCE_COBOL_FOLDER: $env:SOURCE_COBOL_FOLDER'
+      - 'echo AWS_CICD_FOLDER: $env:AWS_CICD_FOLDER'
+      - 'echo COBOL_COMPILER_DIRECTIVES: $env:COBOL_COMPILER_DIRECTIVES'
+      - 'echo COBOL_EXE_PATH_FILE: $env:COBOL_EXE_PATH_FILE'
+      - 'echo CBLLINK_EXE_PATH_FILE: $env:CBLLINK_EXE_PATH_FILE'
+      - 'echo COBDIR: $env:COBDIR'
+      - 'echo COBCPY: $env:COBCPY'
+      - dir
+      - dir  $env:SOURCE_COBOL_FOLDER
+     
+  build:
+    commands:
+      - echo ===============================================================================
+      - echo "Compiling begins"
+      - foreach ($f in Get-ChildItem $env:SOURCE_COBOL_FOLDER -Filter "*.cbl") { 
+            echo -------------------------------------------------------------------------------;
+            echo "Compiling $($f.FullName)";
+            & $env:COBOL_EXE_PATH_FILE "$($f.FullName),,,$($env:COBOL_COMPILER_DIRECTIVES);";
+            }
+      - echo -------------------------------------------------------------------------------
+      - echo "Compiling ends"
+      - echo ""
+      - echo ===============================================================================
+      - echo "Linking begins"
+      - foreach ($f in Get-ChildItem "." -Filter "*.obj") { 
+            echo -------------------------------------------------------------------------------;
+            echo "Linking $($f.FullName)";
+            & $env:CBLLINK_EXE_PATH_FILE -d $f.FullName;
+            }
+      - echo -------------------------------------------------------------------------------
+      - echo "Linking ends"
+
+  post_build:
+    commands:
+      - echo ===============================================================================
+      - echo "Preparing build output files for packaging"
+      - mkdir ./dll
+      - cp *.dll ./dll
+      - cp $env:AWS_CICD_FOLDER/* .
+      - compress-archive -path ./dll -destinationpath ./deploy.zip
+      - compress-archive -path $env:AWS_CICD_FOLDER/* -update -destinationpath ./deploy.zip
+
+artifacts:
+  files:
+    - deploy.zip                    # For CodeDeploy manual deployment
+    - appspec.yml                   # For CodePipeline automated deployment
+    - codedeploy-before-install.bat # For CodePipeline automated deployment
+    - codedeploy-after-install.bat  # For CodePipeline automated deployment
+    - dll/*                         # For CodePipeline automated deployment
+  discard-paths: no
